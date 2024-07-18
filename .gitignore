@@ -1,0 +1,9 @@
+**/.DS_Store
+.idea
+
+datasets/rwr
+logs/
+arch/
+**/.ipynb_checkpoints
+**/__pycache__
+outputs/
