@@ -212,9 +212,10 @@ class RWRNet(torch.nn.Module):
 
 
 class FusedGWLoss(torch.nn.Module):
-    def __init__(self, G1_tg, G2_tg, lambda_edge=0, lambda_total=1e-2, in_iter=5, out_iter=10):
+    def __init__(self, G1_tg, G2_tg, anchor1, anchor2, lambda_w=1, lambda_edge=20, lambda_total=1e-2, in_iter=5, out_iter=10):
         super().__init__()
         self.device = G1_tg.x.device
+        self.lambda_w = lambda_w
         self.lambda_edge = lambda_edge
         self.lambda_total = lambda_total
         self.in_iter = in_iter
@@ -224,16 +225,24 @@ class FusedGWLoss(torch.nn.Module):
         self.n1, self.n2 = G1_tg.num_nodes, G2_tg.num_nodes
         self.intra_c1 = (torch.exp(-(x1 @ x1.T)) * G1_tg.adj).to(self.device)
         self.intra_c2 = (torch.exp(-(x2 @ x2.T)) * G2_tg.adj).to(self.device)
+        self.H = torch.ones(self.n1, self.n2).to(torch.float64).to(self.device)
+        self.H[anchor1, anchor2] = 0
 
     def forward(self, out1, out2):
         inter_c = torch.exp(-(out1 @ out2.T))
         with torch.no_grad():
-            s = sinkhorn(inter_c, self.intra_c1, self.intra_c2, self.in_iter, self.out_iter,
-                         self.lambda_edge, self.lambda_total, self.device)
-        return -torch.sum(inter_c * s)
+            s = sinkhorn(inter_c, self.intra_c1, self.intra_c2,
+                         lambda_w=self.lambda_w,
+                         lambda_e=self.lambda_edge,
+                         lambda_t=self.lambda_total,
+                         in_iter=self.in_iter,
+                         out_iter=self.out_iter,
+                         device=self.device)
+        loss = torch.sum(inter_c * s)
+        return loss
 
 
-def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_e=0, lambda_t=1e-2, device='cpu'):
+def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, lambda_e=20, lambda_t=1e-2, device='cpu'):
     n1, n2 = inter_c.shape
     # marginal distribution
     a = torch.ones(n1).to(torch.float64).to(device) / n1
@@ -248,7 +257,7 @@ def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_e=0, la
         L = (intra_c1 ** 2 @ a.view(-1, 1) @ torch.ones((1, n2)).to(torch.float64).to(device) +
              torch.ones((n1, 1)).to(torch.float64).to(device) @ b.view(1, -1) @ intra_c2 ** 2 -
              2 * intra_c1 @ s @ intra_c2.T)
-        cost = inter_c + lambda_e * L
+        cost = lambda_w * inter_c + lambda_e * L
 
         K = torch.exp(-cost / lambda_t)
         for j in range(in_iter):

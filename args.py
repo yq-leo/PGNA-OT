@@ -21,6 +21,7 @@ def make_args():
     parser.add_argument('--out_dim', dest='out_dim', type=int, default=128, help='output dimension')
 
     # Loss settings
+    parser.add_argument('--lambda_w', dest='lambda_w', type=float, default=1, help='weight of wasserstein distance')
     parser.add_argument('--lambda_edge', dest='lambda_edge', type=float, default=35, help='GW weight')
     parser.add_argument('--lambda_total', dest='lambda_total', type=float, default=1e-2, help='weight of entropy regularization')
     parser.add_argument('--in_iter', dest='in_iter', type=int, default=5, help='number of inner iterations')

@@ -69,7 +69,8 @@ if __name__ == '__main__':
                          output_dim=output_dim,
                          num_layers=args.num_layers).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        criterion = FusedGWLoss(G1_tg, G2_tg,
+        criterion = FusedGWLoss(G1_tg, G2_tg, anchor1, anchor2,
+                                lambda_w=args.lambda_w,
                                 lambda_edge=args.lambda_edge,
                                 lambda_total=args.lambda_total,
                                 in_iter=args.in_iter,
@@ -94,8 +95,13 @@ if __name__ == '__main__':
                 model.eval()
                 inter_c = torch.exp(-(out1 @ out2.T))
                 intra_c1, intra_c2 = criterion.intra_c1, criterion.intra_c2
-                similarity = sinkhorn(inter_c, intra_c1, intra_c2, args.in_iter, args.out_iter,
-                                      args.lambda_edge, args.lambda_total, device)
+                similarity = sinkhorn(inter_c, intra_c1, intra_c2,
+                                      lambda_w=args.lambda_w,
+                                      lambda_e=args.lambda_edge,
+                                      lambda_t=args.lambda_total,
+                                      in_iter=args.in_iter,
+                                      out_iter=args.out_iter,
+                                      device=device)
                 hits, mrr = compute_metrics(-similarity, test_pairs)
                 end = time.time()
                 print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
@@ -108,8 +114,11 @@ if __name__ == '__main__':
                 writer.add_scalar('MRR', mrr, epoch)
                 for key, value in hits.items():
                     writer.add_scalar(f'Hits/Hits@{key}', value, epoch)
+                sim_img = similarity / similarity.max()
+                sim_img = sim_img.repeat(3, 1, 1)
+                writer.add_image('Similarity', sim_img, epoch)
 
-            scheduler.step()
+            # scheduler.step()
 
         emb_list.append({'out1': out1.detach().cpu().numpy(), 'out2': out2.detach().cpu().numpy()})
 
