@@ -68,6 +68,10 @@ if __name__ == '__main__':
                          hidden_dim=output_dim,
                          output_dim=output_dim,
                          num_layers=args.num_layers).to(device)
+        elif args.model == 'RWRNet':
+            model = RWRNet(num_layers=args.num_layers,
+                           input_dim=input_dim,
+                           output_dim=output_dim).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         criterion = FusedGWLoss(G1_tg, G2_tg, anchor1, anchor2,
                                 lambda_w=args.lambda_w,
@@ -114,8 +118,13 @@ if __name__ == '__main__':
                 writer.add_scalar('MRR', mrr, epoch)
                 for key, value in hits.items():
                     writer.add_scalar(f'Hits/Hits@{key}', value, epoch)
+                interc_img = torch.exp(-(out1 @ out2.T))
+                interc_img /= interc_img.sum()
+                interc_img = interc_img / interc_img.max()
+                interc_img = interc_img.repeat(3, 1, 1)
                 sim_img = similarity / similarity.max()
                 sim_img = sim_img.repeat(3, 1, 1)
+                writer.add_image('InterC', interc_img, epoch)
                 writer.add_image('Similarity', sim_img, epoch)
 
             # scheduler.step()
@@ -148,6 +157,7 @@ if __name__ == '__main__':
     writer.add_hparams(hparam_dict,
                        {'hparam/MRR': max_mrr, **{f'hparam/Hits@{key}': value for key, value in max_hits.items()}})
 
-    output_path = save_path(args.dataset, 'outputs', args.use_attr)
-    os.makedirs(output_path)
-    np.savez(f"{output_path}/pgna_embeddings.npz", out1=out1, out2=out2)
+    if args.save_outputs:
+        output_path = save_path(args.dataset, 'outputs', args.use_attr)
+        os.makedirs(output_path)
+        np.savez(f"{output_path}/pgna_embeddings.npz", out1=out1, out2=out2)

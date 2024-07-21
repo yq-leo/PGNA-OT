@@ -266,9 +266,3 @@ def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, la
         s = 0.05 * s + 0.95 * torch.diag(u) @ K @ torch.diag(v)
 
     return s
-
-
-
-
-
-

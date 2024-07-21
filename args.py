@@ -32,5 +32,8 @@ def make_args():
     parser.add_argument('--epochs', dest='epochs', type=int, default=250, help='number of epochs')
     parser.add_argument('--runs', dest='runs', type=int, default=1, help='number of runs')
 
+    # Record settings
+    parser.add_argument('--save_outputs', dest='save_outputs', action='store_true', help='save outputs')
+
     args = parser.parse_args()
     return args
