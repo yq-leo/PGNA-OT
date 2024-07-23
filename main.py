@@ -112,7 +112,7 @@ if __name__ == '__main__':
 
                 max_mrr = max(max_mrr, mrr.cpu())
                 for key, value in hits.items():
-                    max_hits[key] = max(max_hits[key], value)
+                    max_hits[key] = max(max_hits[key], value.cpu())
 
                 writer.add_scalar('Loss', loss.item(), epoch)
                 writer.add_scalar('MRR', mrr, epoch)

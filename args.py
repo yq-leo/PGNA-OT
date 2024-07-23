@@ -25,7 +25,7 @@ def make_args():
     parser.add_argument('--lambda_edge', dest='lambda_edge', type=float, default=35, help='GW weight')
     parser.add_argument('--lambda_total', dest='lambda_total', type=float, default=1e-2, help='weight of entropy regularization')
     parser.add_argument('--in_iter', dest='in_iter', type=int, default=5, help='number of inner iterations')
-    parser.add_argument('--out_iter', dest='out_iter', type=int, default=20, help='number of outer iterations')
+    parser.add_argument('--out_iter', dest='out_iter', type=int, default=10, help='number of outer iterations')
 
     # Training settings
     parser.add_argument('--lr', dest='lr', type=float, default=1e-3, help='learning_rate')

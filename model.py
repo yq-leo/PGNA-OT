@@ -238,7 +238,7 @@ class FusedGWLoss(torch.nn.Module):
                          in_iter=self.in_iter,
                          out_iter=self.out_iter,
                          device=self.device)
-        loss = -torch.sum(inter_c * s)
+        loss = torch.sum(inter_c * s)
         return loss
 
 
@@ -253,17 +253,28 @@ def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, la
     # transport plan
     s = torch.ones((n1, n2)).to(torch.float64).to(device) / (n1 * n2)
 
+    temp = (intra_c1 ** 2 @ a.view(-1, 1) @ torch.ones((1, n2)).to(torch.float64).to(device) +
+            torch.ones((n1, 1)).to(torch.float64).to(device) @ b.view(1, -1) @ intra_c2 ** 2)
     for i in range(out_iter):
-        L = (intra_c1 ** 2 @ a.view(-1, 1) @ torch.ones((1, n2)).to(torch.float64).to(device) +
-             torch.ones((n1, 1)).to(torch.float64).to(device) @ b.view(1, -1) @ intra_c2 ** 2 -
-             2 * intra_c1 @ s @ intra_c2.T)
+        L = temp - 2 * intra_c1 @ s @ intra_c2.T
         cost = lambda_w * inter_c + lambda_e * L
 
+        if i == 0:
+            cost_old = cost
+        else:
+            dist_old = torch.sum(cost_old * s)
+            dist = torch.sum(cost * s)
+            if dist <= dist_old:
+                cost_old = cost
+            else:
+                cost = cost_old
+
+        # cost -= 5e-4 * torch.log(s)
         K = torch.exp(-cost / lambda_t)
         for j in range(in_iter):
             u = a / (K @ v)
             v = b / (K.T @ u)
-        s = 0.05 * s + 0.95 * torch.diag(u) @ K @ torch.diag(v)
+        s = 0.05 * s + 0.95 * u.view(-1, 1) * K * v.view(1, -1)
 
     return s
 
