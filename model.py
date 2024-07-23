@@ -238,7 +238,7 @@ class FusedGWLoss(torch.nn.Module):
                          in_iter=self.in_iter,
                          out_iter=self.out_iter,
                          device=self.device)
-        loss = torch.sum(inter_c * s)
+        loss = -torch.sum(inter_c * s)
         return loss
 
 
@@ -264,5 +264,74 @@ def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, la
             u = a / (K @ v)
             v = b / (K.T @ u)
         s = 0.05 * s + 0.95 * torch.diag(u) @ K @ torch.diag(v)
+
+    return s
+
+
+def sinkhorn_stable(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, lambda_e=20, lambda_t=1e-2, device='cpu'):
+    n1, n2 = inter_c.shape
+    # marginal distribution
+    a = torch.ones(n1).to(torch.float64).to(device) / n1
+    b = torch.ones(n2).to(torch.float64).to(device) / n2
+    # lagrange multiplier
+    u = torch.ones(n1).to(torch.float64).to(device) / n1
+    v = torch.ones(n2).to(torch.float64).to(device) / n2
+    # transport plan
+    s = torch.ones((n1, n2)).to(torch.float64).to(device) / (n1 * n2)
+
+    for i in range(out_iter):
+        L = (intra_c1 ** 2 @ a.view(-1, 1) @ torch.ones((1, n2)).to(torch.float64).to(device) +
+             torch.ones((n1, 1)).to(torch.float64).to(device) @ b.view(1, -1) @ intra_c2 ** 2 -
+             2 * intra_c1 @ s @ intra_c2.T)
+        cost = lambda_w * inter_c + lambda_e * L
+
+        Q = cost
+        for j in range(in_iter):
+            u = -lambda_t * torch.log(torch.exp((v.view(1, -1) - Q) / lambda_t).sum(1) / a)
+            v = -lambda_t * torch.log(torch.exp((u.view(1, -1) - Q.T) / lambda_t).sum(1) / b)
+        u, v = u.view((-1, 1)), v.view((-1, 1))
+        s = 0.05 * s + 0.95 * torch.exp((u + v.T - Q) / lambda_t)
+
+    return s
+
+
+def greenkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, lambda_e=20, lambda_t=1e-2, device='cpu'):
+    n1, n2 = inter_c.shape
+    # marginal distribution
+    r = torch.ones(n1).to(torch.float64).to(device) / n1
+    c = torch.ones(n2).to(torch.float64).to(device) / n2
+    # lagrange multiplier
+    x = torch.zeros(n1).to(torch.float64).to(device)
+    y = torch.zeros(n2).to(torch.float64).to(device)
+    # transport plan
+    s = torch.ones((n1, n2)).to(torch.float64).to(device) / (n1 * n2)
+
+    def rho(a, b):
+        return b - a + a * torch.log(a / b)
+
+    for i in range(out_iter):
+        L = (intra_c1 ** 2 @ r.view(-1, 1) @ torch.ones((1, n2)).to(torch.float64).to(device) +
+             torch.ones((n1, 1)).to(torch.float64).to(device) @ c.view(1, -1) @ intra_c2 ** 2 -
+             2 * intra_c1 @ s @ intra_c2.T)
+        cost = lambda_w * inter_c + lambda_e * L
+
+        A = torch.exp(-cost / lambda_t)
+        rA = torch.sum(A, dim=1)
+        cA = torch.sum(A, dim=0)
+        for k in range(in_iter * (n1 + n2)):
+            row_idx = torch.argmax(rho(r, rA))
+            col_idx = torch.argmax(rho(c, cA))
+            if rho(r[row_idx], rA[row_idx]) > rho(c[col_idx], cA[col_idx]):
+                x[row_idx] = torch.log(r[row_idx] / rA[row_idx])
+                rA[row_idx] = torch.exp(x[row_idx]) * rA[row_idx]
+                cA = cA - A[row_idx, :] + torch.exp(x[row_idx]) * A[row_idx, :]
+                A[row_idx, :] = torch.exp(x[row_idx]) * A[row_idx, :]
+            else:
+                y[col_idx] = torch.log(c[col_idx] / cA[col_idx])
+                cA[col_idx] = torch.exp(y[col_idx]) * cA[col_idx]
+                rA = rA - A[:, col_idx] + torch.exp(y[col_idx]) * A[:, col_idx]
+                A[:, col_idx] = torch.exp(y[col_idx]) * A[:, col_idx]
+
+        s = 0.05 * s + 0.95 * A
 
     return s
