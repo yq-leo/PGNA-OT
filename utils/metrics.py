@@ -17,6 +17,38 @@ def compute_distance_matrix(emb1, emb2):
     return dists
 
 
+def compute_metrics_ltr(dissimilarity, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
+    distances = dissimilarity[test_pairs[:, 0]]
+    device = dissimilarity.device
+
+    hits = {}
+    ranks = torch.argsort(distances, dim=1)
+    test_pairs = torch.from_numpy(test_pairs).to(torch.int64).to(device)
+    signal_hit = ranks == test_pairs[:, 1].view(-1, 1)
+    for k in hit_top_ks:
+        hits[k] = torch.sum(signal_hit[:, :k]) / test_pairs.shape[0]
+
+    mrr = torch.mean(1 / (torch.where(ranks == test_pairs[:, 1].view(-1, 1))[1] + 1))
+
+    return hits, mrr
+
+
+def compute_metrics_rtl(dissimilarity, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
+    distances = dissimilarity.T[test_pairs[:, 1]]
+    device = dissimilarity.device
+
+    hits = {}
+    ranks = torch.argsort(distances, dim=1)
+    test_pairs = torch.from_numpy(test_pairs).to(torch.int64).to(device)
+    signal_hit = ranks == test_pairs[:, 0].view(-1, 1)
+    for k in hit_top_ks:
+        hits[k] = torch.sum(signal_hit[:, :k]) / test_pairs.shape[0]
+
+    mrr = torch.mean(1 / (torch.where(ranks == test_pairs[:, 0].view(-1, 1))[1] + 1))
+
+    return hits, mrr
+
+
 def compute_metrics(dissimilarity, test_pairs, hit_top_ks=(1, 5, 10, 30, 50, 100)):
     """
     Compute metrics for the model (HITS@k, MRR)

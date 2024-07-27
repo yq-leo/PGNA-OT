@@ -238,7 +238,7 @@ class FusedGWLoss(torch.nn.Module):
                          in_iter=self.in_iter,
                          out_iter=self.out_iter,
                          device=self.device)
-        loss = torch.sum(inter_c * s)
+        loss = torch.sum(inter_c * (s - 1 / (self.n1 * self.n2))) + 10
         return loss
 
 
@@ -269,7 +269,6 @@ def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, la
             else:
                 cost = cost_old
 
-        # cost -= 5e-4 * torch.log(s)
         K = torch.exp(-cost / lambda_t)
         for j in range(in_iter):
             u = a / (K @ v)

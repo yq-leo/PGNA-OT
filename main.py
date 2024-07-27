@@ -92,7 +92,7 @@ if __name__ == '__main__':
             loss = criterion(out1=out1, out2=out2)
             loss.backward()
             optimizer.step()
-            print(f'Epoch: {epoch + 1}, Loss: {loss.item():.6f}', end=', ')
+            print(f'Epoch {epoch + 1}, Loss: {loss.item():.6f}', end=', ')
 
             # testing
             with torch.no_grad():
@@ -107,8 +107,12 @@ if __name__ == '__main__':
                                       out_iter=args.out_iter,
                                       device=device)
                 hits, mrr = compute_metrics(-similarity, test_pairs)
+                cost = inter_c / inter_c.sum()
+                cost_entropy = torch.sum(-cost * torch.log(cost))
+                s_entropy = torch.sum(-similarity * torch.log(similarity))
                 end = time.time()
-                print(f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
+                print(f'cost_entropy: {cost_entropy:.6f}, s_entropy: {s_entropy:.6f}, '
+                      f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
 
                 max_mrr = max(max_mrr, mrr.cpu())
                 for key, value in hits.items():
