@@ -1,5 +1,3 @@
-import os.path
-
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from collections import defaultdict
@@ -31,9 +29,9 @@ if __name__ == '__main__':
 
     rwr1, rwr2 = get_rwr_matrix(G1, G2, anchor_links, args.dataset, args.ratio, dtype=np_dtype)
     if x1 is None:
-        x1 = rwr1
+        x1 = np.ones((rwr1.shape[0], 100), dtype=np_dtype)
     if x2 is None:
-        x2 = rwr2
+        x2 = np.ones((rwr2.shape[0], 100), dtype=np_dtype)
 
     # device setting
     assert torch.cuda.is_available() or args.device == 'cpu', 'CUDA is not available'
@@ -97,7 +95,7 @@ if __name__ == '__main__':
             # testing
             with torch.no_grad():
                 model.eval()
-                inter_c = torch.exp(-(out1 @ out2.T))
+                inter_c = torch.exp(cdist(out1, out2, order=2))
                 intra_c1, intra_c2 = criterion.intra_c1, criterion.intra_c2
                 similarity = sinkhorn(inter_c, intra_c1, intra_c2,
                                       lambda_w=args.lambda_w,

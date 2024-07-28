@@ -229,16 +229,20 @@ class FusedGWLoss(torch.nn.Module):
         self.H[anchor1, anchor2] = 0
 
     def forward(self, out1, out2):
-        inter_c = torch.exp(-(out1 @ out2.T))
-        with torch.no_grad():
-            s = sinkhorn(inter_c, self.intra_c1, self.intra_c2,
-                         lambda_w=self.lambda_w,
-                         lambda_e=self.lambda_edge,
-                         lambda_t=self.lambda_total,
-                         in_iter=self.in_iter,
-                         out_iter=self.out_iter,
-                         device=self.device)
-        loss = torch.sum(inter_c * (s - 1 / (self.n1 * self.n2))) + 10
+        inter_c = torch.exp(cdist(out1, out2, order=2))
+        # with torch.no_grad():
+        #     s = sinkhorn(inter_c, self.intra_c1, self.intra_c2,
+        #                  lambda_w=self.lambda_w,
+        #                  lambda_e=self.lambda_edge,
+        #                  lambda_t=self.lambda_total,
+        #                  in_iter=self.in_iter,
+        #                  out_iter=self.out_iter,
+        #                  device=self.device)
+        # loss = torch.sum(inter_c * (s - 1 / (self.n1 * self.n2))) + 10
+        w = torch.ones(self.n1, self.n2).to(torch.float64).to(self.device)
+        w[torch.arange(self.n1), torch.arange(self.n1)] = 0
+        w = w / torch.sum(w)
+        loss = -torch.sum(inter_c * w)
         return loss
 
 
@@ -345,3 +349,10 @@ def greenkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, 
         s = 0.05 * s + 0.95 * A
 
     return s
+
+
+def cdist(emb1, emb2, order=2):
+    dists1 = emb1.unsqueeze(1).repeat(1, emb2.shape[0], 1)
+    dists2 = emb2.unsqueeze(0).repeat(emb1.shape[0], 1, 1)
+    dists = torch.sum((dists1 - dists2).abs() ** order, dim=-1) ** (1 / order)
+    return dists
