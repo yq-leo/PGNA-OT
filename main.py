@@ -49,9 +49,10 @@ if __name__ == '__main__':
     hidden_dim = args.hidden_dim
     output_dim = args.out_dim
 
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    writer = SummaryWriter(save_path(args.dataset, 'logs', args.use_attr))
+    log_dir = 'shared_logs'
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    writer = SummaryWriter(save_path(args.dataset, log_dir, args.use_attr))
 
     max_hits_list = defaultdict(list)
     max_mrr_list = []
@@ -59,7 +60,6 @@ if __name__ == '__main__':
     for run in range(args.runs):
         print(f"Run {run + 1}/{args.runs}")
 
-        # model = RWRNet(3, input_dim, output_dim).to(device)
         model = BRIGHT(input_dim=input_dim, hidden_dim=output_dim, output_dim=output_dim).to(device)
         if args.model == 'PGNA':
             model = PGNA(input_dim=input_dim,
@@ -99,7 +99,7 @@ if __name__ == '__main__':
                 model.eval()
                 inter_c = torch.exp(-(out1 @ out2.T))
                 intra_c1, intra_c2 = criterion.intra_c1, criterion.intra_c2
-                similarity = sinkhorn(inter_c, intra_c1, intra_c2,
+                similarity = sinkhorn_stable(inter_c, intra_c1, intra_c2,
                                       lambda_w=args.lambda_w,
                                       lambda_e=args.lambda_edge,
                                       lambda_t=args.lambda_total,

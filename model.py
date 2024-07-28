@@ -231,7 +231,7 @@ class FusedGWLoss(torch.nn.Module):
     def forward(self, out1, out2):
         inter_c = torch.exp(-(out1 @ out2.T))
         with torch.no_grad():
-            s = sinkhorn(inter_c, self.intra_c1, self.intra_c2,
+            s = sinkhorn_stable(inter_c, self.intra_c1, self.intra_c2,
                          lambda_w=self.lambda_w,
                          lambda_e=self.lambda_edge,
                          lambda_t=self.lambda_total,
