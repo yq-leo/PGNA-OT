@@ -157,6 +157,7 @@ if __name__ == '__main__':
         'lr': args.lr,
         'lambda_edge': args.lambda_edge,
         'lambda_total': args.lambda_total,
+        'lambda_w': args.lambda_w
     }
     writer.add_hparams(hparam_dict,
                        {'hparam/MRR': max_mrr, **{f'hparam/Hits@{key}': value for key, value in max_hits.items()}})
