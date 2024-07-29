@@ -238,7 +238,7 @@ class FusedGWLoss(torch.nn.Module):
                          in_iter=self.in_iter,
                          out_iter=self.out_iter,
                          device=self.device)
-        loss = torch.sum(inter_c * (s - 2 / (self.n1 * self.n2))) + 10
+        loss = torch.sum(inter_c * (s - 1 / (self.n1 * self.n2))) + 10
         return loss
 
 
