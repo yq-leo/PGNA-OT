@@ -78,7 +78,8 @@ if __name__ == '__main__':
                                 lambda_edge=args.lambda_edge,
                                 lambda_total=args.lambda_total,
                                 in_iter=args.in_iter,
-                                out_iter=args.out_iter).to(device)
+                                out_iter=args.out_iter,
+                                total_epochs=args.epochs).to(device)
         scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
 
         print("Training...")
@@ -89,7 +90,7 @@ if __name__ == '__main__':
             start = time.time()
             optimizer.zero_grad()
             out1, out2 = model(G1_tg, G2_tg)
-            loss = criterion(out1=out1, out2=out2)
+            loss = criterion(out1=out1, out2=out2, epoch=epoch)
             loss.backward()
             optimizer.step()
             print(f'Epoch {epoch + 1}, Loss: {loss.item():.6f}', end=', ')
@@ -98,8 +99,9 @@ if __name__ == '__main__':
             with torch.no_grad():
                 model.eval()
                 inter_c = torch.exp(-(out1 @ out2.T))
-                intra_c1, intra_c2 = criterion.intra_c1, criterion.intra_c2
-                similarity = sinkhorn(inter_c, intra_c1, intra_c2,
+                intra_c1 = torch.exp(-(out1 @ out1.T)) * G1_tg.adj
+                intra_c2 = torch.exp(-(out2 @ out2.T)) * G2_tg.adj
+                similarity = sinkhorn_stable(inter_c, intra_c1, intra_c2,
                                       lambda_w=args.lambda_w,
                                       lambda_e=args.lambda_edge,
                                       lambda_t=args.lambda_total,

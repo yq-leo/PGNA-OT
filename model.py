@@ -212,7 +212,7 @@ class RWRNet(torch.nn.Module):
 
 
 class FusedGWLoss(torch.nn.Module):
-    def __init__(self, G1_tg, G2_tg, anchor1, anchor2, lambda_w=1, lambda_edge=20, lambda_total=1e-2, in_iter=5, out_iter=10):
+    def __init__(self, G1_tg, G2_tg, anchor1, anchor2, lambda_w=1, lambda_edge=20, lambda_total=1e-2, in_iter=5, out_iter=10, total_epochs=250):
         super().__init__()
         self.device = G1_tg.x.device
         self.lambda_w = lambda_w
@@ -220,25 +220,39 @@ class FusedGWLoss(torch.nn.Module):
         self.lambda_total = lambda_total
         self.in_iter = in_iter
         self.out_iter = out_iter
+        self.total_epochs = total_epochs
 
-        x1, x2 = F.normalize(G1_tg.x, p=2, dim=1), F.normalize(G2_tg.x, p=2, dim=1)
         self.n1, self.n2 = G1_tg.num_nodes, G2_tg.num_nodes
-        self.intra_c1 = (torch.exp(-(x1 @ x1.T)) * G1_tg.adj).to(self.device)
-        self.intra_c2 = (torch.exp(-(x2 @ x2.T)) * G2_tg.adj).to(self.device)
+        self.adj1, self.adj2 = G1_tg.adj, G2_tg.adj
         self.H = torch.ones(self.n1, self.n2).to(torch.float64).to(self.device)
         self.H[anchor1, anchor2] = 0
 
-    def forward(self, out1, out2):
+    def forward(self, out1, out2, epoch):
         inter_c = torch.exp(-(out1 @ out2.T))
+        intra_c1 = torch.exp(-(out1 @ out1.T)) * self.adj1
+        intra_c2 = torch.exp(-(out2 @ out2.T)) * self.adj2
         with torch.no_grad():
-            s = sinkhorn(inter_c, self.intra_c1, self.intra_c2,
+            s = sinkhorn_stable(inter_c, intra_c1, intra_c2,
                          lambda_w=self.lambda_w,
                          lambda_e=self.lambda_edge,
                          lambda_t=self.lambda_total,
                          in_iter=self.in_iter,
                          out_iter=self.out_iter,
                          device=self.device)
-        loss = torch.sum(inter_c * (s - 2 / (self.n1 * self.n2))) + 10
+
+        s = s - 1 / (self.n1 * self.n2)
+
+        # Wasserstein Loss
+        w_loss = torch.sum(inter_c * s)
+
+        # Gromov-Wasserstein Loss
+        a = torch.ones(self.n1).to(torch.float64).to(self.device) / self.n1
+        b = torch.ones(self.n2).to(torch.float64).to(self.device) / self.n2
+        gw_loss = torch.sum((intra_c1 ** 2 @ a.view(-1, 1) @ torch.ones((1, self.n2)).to(torch.float64).to(self.device) +
+                             torch.ones((self.n1, 1)).to(torch.float64).to(self.device) @ b.view(1, -1) @ intra_c2 ** 2 -
+                             2 * intra_c1 @ s @ intra_c2.T) * s)
+
+        loss = w_loss + 10
         return loss
 
 
@@ -294,6 +308,7 @@ def sinkhorn_stable(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_
              torch.ones((n1, 1)).to(torch.float64).to(device) @ b.view(1, -1) @ intra_c2 ** 2 -
              2 * intra_c1 @ s @ intra_c2.T)
         cost = lambda_w * inter_c + lambda_e * L
+        # print(cost.min(), cost.max())
 
         Q = cost
         for j in range(in_iter):
