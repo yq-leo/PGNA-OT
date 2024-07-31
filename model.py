@@ -252,7 +252,7 @@ class FusedGWLoss(torch.nn.Module):
                              torch.ones((self.n1, 1)).to(torch.float64).to(self.device) @ b.view(1, -1) @ intra_c2 ** 2 -
                              2 * intra_c1 @ s @ intra_c2.T) * s)
 
-        loss = w_loss + 10
+        loss = self.lambda_w * w_loss + self.lambda_edge * gw_loss + 10
         return loss
 
 
@@ -308,9 +308,8 @@ def sinkhorn_stable(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_
              torch.ones((n1, 1)).to(torch.float64).to(device) @ b.view(1, -1) @ intra_c2 ** 2 -
              2 * intra_c1 @ s @ intra_c2.T)
         cost = lambda_w * inter_c + lambda_e * L
-        # print(cost.min(), cost.max())
 
-        Q = cost
+        Q = cost - cost.min()
         for j in range(in_iter):
             u = -lambda_t * torch.log(torch.exp((v.view(1, -1) - Q) / lambda_t).sum(1) / a)
             v = -lambda_t * torch.log(torch.exp((u.view(1, -1) - Q.T) / lambda_t).sum(1) / b)
