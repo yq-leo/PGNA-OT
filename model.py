@@ -190,7 +190,7 @@ class RWRNet(torch.nn.Module):
     def __init__(self, num_layers, input_dim, output_dim):
         super(RWRNet, self).__init__()
         self.num_layers = num_layers
-        self.beta = 0.5
+        self.beta = 0.85
         self.lin = torch.nn.Linear(input_dim, output_dim)
         self.gcn_in = GCNConv(input_dim, output_dim)
         self.gcn = nn.ModuleList([GCNConv(output_dim, output_dim)] * (num_layers - 1))
@@ -238,7 +238,7 @@ class FusedGWLoss(torch.nn.Module):
                          in_iter=self.in_iter,
                          out_iter=self.out_iter,
                          device=self.device)
-        loss = torch.sum(inter_c * (s - 1 / (self.n1 * self.n2))) + 10
+        loss = torch.sum(inter_c * (s - 3 / (self.n1 * self.n2))) + 10
         return loss
 
 
