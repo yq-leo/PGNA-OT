@@ -232,7 +232,7 @@ class FusedGWLoss(torch.nn.Module):
         intra_c1 = torch.exp(-(out1 @ out1.T)) * self.adj1
         intra_c2 = torch.exp(-(out2 @ out2.T)) * self.adj2
         with torch.no_grad():
-            s = sinkhorn_stable(inter_c, intra_c1, intra_c2,
+            s = sinkhorn_super_stable(inter_c, intra_c1, intra_c2,
                          lambda_w=self.lambda_w,
                          lambda_e=self.lambda_edge,
                          lambda_t=self.lambda_total,
@@ -240,6 +240,7 @@ class FusedGWLoss(torch.nn.Module):
                          out_iter=self.out_iter,
                          device=self.device)
 
+        org_s = s
         s = s - 1 / (self.n1 * self.n2)
 
         # Wasserstein Loss
@@ -252,8 +253,8 @@ class FusedGWLoss(torch.nn.Module):
                              torch.ones((self.n1, 1)).to(torch.float64).to(self.device) @ b.view(1, -1) @ intra_c2 ** 2 -
                              2 * intra_c1 @ s @ intra_c2.T) * s)
 
-        loss = self.lambda_w * w_loss + self.lambda_edge * gw_loss + 10
-        return loss
+        loss = self.lambda_w * w_loss + self.lambda_edge * gw_loss + 20
+        return loss, org_s
 
 
 def sinkhorn(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, lambda_e=20, lambda_t=1e-2, device='cpu'):
@@ -315,6 +316,42 @@ def sinkhorn_stable(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_
             v = -lambda_t * torch.log(torch.exp((u.view(1, -1) - Q.T) / lambda_t).sum(1) / b)
         u, v = u.view((-1, 1)), v.view((-1, 1))
         s = 0.05 * s + 0.95 * torch.exp((u + v.T - Q) / lambda_t)
+
+    return s
+
+
+def sinkhorn_super_stable(inter_c, intra_c1, intra_c2, in_iter=5, out_iter=10, lambda_w=1, lambda_e=20, lambda_t=1e-2, device='cpu'):
+    n1, n2 = inter_c.shape
+    # marginal distribution
+    a = torch.ones(n1).to(torch.float64).to(device) / n1
+    b = torch.ones(n2).to(torch.float64).to(device) / n2
+    # lagrange multiplier
+    f = torch.ones(n1).to(torch.float64).to(device) / n1
+    g = torch.ones(n2).to(torch.float64).to(device) / n2
+    # transport plan
+    s = torch.ones((n1, n2)).to(torch.float64).to(device) / (n1 * n2)
+
+    def soft_min_row(z_in, eps):
+        hard_min = torch.min(z_in, dim=1, keepdim=True)[0]
+        soft_min = hard_min - eps * torch.log(torch.sum(torch.exp(-(z_in - hard_min) / eps), dim=1, keepdim=True))
+        return soft_min.squeeze(-1)
+
+    def soft_min_col(z_in, eps):
+        hard_min = torch.min(z_in, dim=0, keepdim=True)[0]
+        soft_min = hard_min - eps * torch.log(torch.sum(torch.exp(-(z_in - hard_min) / eps), dim=0, keepdim=True))
+        return soft_min.squeeze(0)
+
+    for i in range(out_iter):
+        L = (intra_c1 ** 2 @ a.view(-1, 1) @ torch.ones((1, n2)).to(torch.float64).to(device) +
+             torch.ones((n1, 1)).to(torch.float64).to(device) @ b.view(1, -1) @ intra_c2 ** 2 -
+             2 * intra_c1 @ s @ intra_c2.T)
+        cost = lambda_w * inter_c + lambda_e * L
+
+        Q = cost
+        for j in range(in_iter):
+            f = soft_min_row(Q - g.view(1, -1), lambda_t) + lambda_t * torch.log(a)
+            g = soft_min_col(Q - f.view(-1, 1), lambda_t) + lambda_t * torch.log(b)
+        s = 0.05 * s + 0.95 * torch.exp((f.view(-1, 1) + g.view(-1, 1).T - Q) / lambda_t)
 
     return s
 

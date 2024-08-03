@@ -90,7 +90,7 @@ if __name__ == '__main__':
             start = time.time()
             optimizer.zero_grad()
             out1, out2 = model(G1_tg, G2_tg)
-            loss = criterion(out1=out1, out2=out2, epoch=epoch)
+            loss, similarity = criterion(out1=out1, out2=out2, epoch=epoch)
             loss.backward()
             optimizer.step()
             print(f'Epoch {epoch + 1}, Loss: {loss.item():.6f}', end=', ')
@@ -98,22 +98,13 @@ if __name__ == '__main__':
             # testing
             with torch.no_grad():
                 model.eval()
-                inter_c = torch.exp(-(out1 @ out2.T))
-                intra_c1 = torch.exp(-(out1 @ out1.T)) * G1_tg.adj
-                intra_c2 = torch.exp(-(out2 @ out2.T)) * G2_tg.adj
-                similarity = sinkhorn_stable(inter_c, intra_c1, intra_c2,
-                                      lambda_w=args.lambda_w,
-                                      lambda_e=args.lambda_edge,
-                                      lambda_t=args.lambda_total,
-                                      in_iter=args.in_iter,
-                                      out_iter=args.out_iter,
-                                      device=device)
                 hits, mrr = compute_metrics(-similarity, test_pairs)
+                inter_c = torch.exp(-(out1 @ out2.T))
                 cost = inter_c / inter_c.sum()
                 cost_entropy = torch.sum(-cost * torch.log(cost))
                 s_entropy = torch.sum(-similarity * torch.log(similarity))
                 end = time.time()
-                print(f'cost_entropy: {cost_entropy:.6f}, s_entropy: {s_entropy:.6f}, '
+                print(f'c_entropy: {cost_entropy:.4f}, s_entropy: {s_entropy:.4f}, '
                       f'{", ".join([f"Hits@{key}: {value:.4f}" for (key, value) in hits.items()])}, MRR: {mrr:.4f}')
 
                 max_mrr = max(max_mrr, mrr.cpu())
