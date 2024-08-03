@@ -89,7 +89,7 @@ if __name__ == '__main__':
             start = time.time()
             optimizer.zero_grad()
             out1, out2 = model(G1_tg, G2_tg)
-            loss = criterion(out1=out1, out2=out2)
+            loss, similarity = criterion(out1=out1, out2=out2)
             loss.backward()
             optimizer.step()
             print(f'Epoch {epoch + 1}, Loss: {loss.item():.6f}', end=', ')
@@ -97,16 +97,8 @@ if __name__ == '__main__':
             # testing
             with torch.no_grad():
                 model.eval()
-                inter_c = torch.exp(-(out1 @ out2.T))
-                intra_c1, intra_c2 = criterion.intra_c1, criterion.intra_c2
-                similarity = sinkhorn(inter_c, intra_c1, intra_c2,
-                                      lambda_w=args.lambda_w,
-                                      lambda_e=args.lambda_edge,
-                                      lambda_t=args.lambda_total,
-                                      in_iter=args.in_iter,
-                                      out_iter=args.out_iter,
-                                      device=device)
                 hits, mrr = compute_metrics(-similarity, test_pairs)
+                inter_c = torch.exp(-(out1 @ out2.T))
                 cost = inter_c / inter_c.sum()
                 cost_entropy = torch.sum(-cost * torch.log(cost))
                 s_entropy = torch.sum(-similarity * torch.log(similarity))
