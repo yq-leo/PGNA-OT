@@ -1,5 +1,3 @@
-import os.path
-
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from collections import defaultdict
@@ -115,14 +113,6 @@ if __name__ == '__main__':
                 writer.add_scalar('MRR', mrr, epoch)
                 for key, value in hits.items():
                     writer.add_scalar(f'Hits/Hits@{key}', value, epoch)
-                interc_img = torch.exp(-(out1 @ out2.T))
-                interc_img /= interc_img.sum()
-                interc_img = interc_img / interc_img.max()
-                interc_img = interc_img.repeat(3, 1, 1)
-                sim_img = similarity / similarity.max()
-                sim_img = sim_img.repeat(3, 1, 1)
-                writer.add_image('InterC', interc_img, epoch)
-                writer.add_image('Similarity', sim_img, epoch)
 
             # scheduler.step()
 
