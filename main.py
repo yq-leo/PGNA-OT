@@ -47,9 +47,10 @@ if __name__ == '__main__':
     hidden_dim = args.hidden_dim
     output_dim = args.out_dim
 
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    writer = SummaryWriter(save_path(args.dataset, 'logs', args.use_attr))
+    out_dir = "shared_logs"
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    writer = SummaryWriter(save_path(args.dataset, out_dir, args.use_attr))
 
     max_hits_list = defaultdict(list)
     max_mrr_list = []
