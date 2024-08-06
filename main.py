@@ -49,9 +49,10 @@ if __name__ == '__main__':
     hidden_dim = args.hidden_dim
     output_dim = args.out_dim
 
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    writer = SummaryWriter(save_path(args.dataset, 'logs', args.use_attr))
+    out_dir = "logs"
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    writer = SummaryWriter(save_path(args.dataset, out_dir, args.use_attr))
 
     max_hits_list = defaultdict(list)
     max_mrr_list = []
@@ -115,14 +116,6 @@ if __name__ == '__main__':
                 writer.add_scalar('MRR', mrr, epoch)
                 for key, value in hits.items():
                     writer.add_scalar(f'Hits/Hits@{key}', value, epoch)
-                interc_img = torch.exp(-(out1 @ out2.T))
-                interc_img /= interc_img.sum()
-                interc_img = interc_img / interc_img.max()
-                interc_img = interc_img.repeat(3, 1, 1)
-                sim_img = similarity / similarity.max()
-                sim_img = sim_img.repeat(3, 1, 1)
-                writer.add_image('InterC', interc_img, epoch)
-                writer.add_image('Similarity', sim_img, epoch)
 
             # scheduler.step()
 
