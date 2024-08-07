@@ -15,7 +15,6 @@ def make_args():
     parser.add_argument('--gpu', dest='device', action='store_const', const='cuda', default='cpu', help='use GPU')
 
     # Model settings
-    parser.add_argument('--model', dest='model', type=str, default='BRIGHT')
     parser.add_argument('--num_layers', dest='num_layers', type=int, default=1, help='number of layers')
     parser.add_argument('--hidden_dim', dest='hidden_dim', type=int, default=128, help='hidden dimension')
     parser.add_argument('--out_dim', dest='out_dim', type=int, default=128, help='output dimension')

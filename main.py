@@ -45,7 +45,7 @@ if __name__ == '__main__':
     G2_tg = build_tg_graph(edge_index2, x2, rwr2, dtype=torch_dtype).to(device)
 
     # model setting
-    input_dim = G1_tg.x.shape[1]
+    input_dim = G1_tg.pos_x.shape[1]
     hidden_dim = args.hidden_dim
     output_dim = args.out_dim
 
@@ -60,19 +60,7 @@ if __name__ == '__main__':
     for run in range(args.runs):
         print(f"Run {run + 1}/{args.runs}")
 
-        # model = RWRNet(3, input_dim, output_dim).to(device)
-        model = BRIGHT(input_dim=input_dim, hidden_dim=output_dim, output_dim=output_dim).to(device)
-        if args.model == 'PGNA':
-            model = PGNA(input_dim=input_dim,
-                         feature_dim=output_dim,
-                         anchor_dim=anchor_links.shape[0],
-                         hidden_dim=output_dim,
-                         output_dim=output_dim,
-                         num_layers=args.num_layers).to(device)
-        elif args.model == 'RWRNet':
-            model = RWRNet(num_layers=args.num_layers,
-                           input_dim=input_dim,
-                           output_dim=output_dim).to(device)
+        model = FPSEN(input_dim=input_dim, hidden_dim=output_dim, output_dim=output_dim).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         criterion = FusedGWLoss(G1_tg, G2_tg, anchor1, anchor2,
                                 lambda_w=args.lambda_w,
@@ -90,8 +78,8 @@ if __name__ == '__main__':
             model.train()
             start = time.time()
             optimizer.zero_grad()
-            out1, out2 = model(G1_tg, G2_tg)
-            loss, similarity = criterion(out1=out1, out2=out2, epoch=epoch)
+            pos_out1, pos_out2, str_out1, str_out2 = model(G1_tg, G2_tg)
+            loss, similarity = criterion(pos_out1, pos_out2, str_out1, str_out2, epoch=epoch)
             loss.backward()
             optimizer.step()
             print(f'Epoch {epoch + 1}, Loss: {loss.item():.6f}', end=', ')
@@ -100,7 +88,7 @@ if __name__ == '__main__':
             with torch.no_grad():
                 model.eval()
                 hits, mrr = compute_metrics(-similarity, test_pairs)
-                inter_c = torch.exp(-(out1 @ out2.T))
+                inter_c = torch.exp(-(pos_out1 @ pos_out2.T))
                 cost = inter_c / inter_c.sum()
                 cost_entropy = torch.sum(-cost * torch.log(cost))
                 s_entropy = torch.sum(-similarity * torch.log(similarity))
@@ -119,7 +107,7 @@ if __name__ == '__main__':
 
             # scheduler.step()
 
-        emb_list.append({'out1': out1.detach().cpu().numpy(), 'out2': out2.detach().cpu().numpy()})
+        emb_list.append({'out1': pos_out1.detach().cpu().numpy(), 'out2': pos_out2.detach().cpu().numpy()})
 
         for key, value in max_hits.items():
             max_hits_list[key].append(value)
@@ -138,7 +126,6 @@ if __name__ == '__main__':
     hparam_dict = {
         'dataset': args.dataset,
         'use_attr': args.use_attr,
-        'model': args.model,
         'epochs': args.epochs,
         'lr': args.lr,
         'lambda_edge': args.lambda_edge,

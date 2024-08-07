@@ -6,6 +6,50 @@ import numpy as np
 import scipy
 
 
+class ResidualGCN(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(ResidualGCN, self).__init__()
+        self.lin = torch.nn.Linear(input_dim, hidden_dim)
+        self.gcn1 = GCNConv(hidden_dim, hidden_dim)
+        self.gcn2 = GCNConv(hidden_dim, output_dim)
+        self.act = nn.ReLU()
+
+    def forward(self, x, edge_index):
+        init_out = self.act(self.lin(x))
+        init_out = F.normalize(init_out, p=2, dim=1)
+        out1 = self.act(self.gcn1(init_out, edge_index))
+        out1 = F.normalize(out1, p=2, dim=1)
+        out2 = self.gcn2(0.95 * init_out + 0.05 * out1, edge_index)
+        return F.normalize(out2, p=2, dim=1)
+
+
+# Fused Positional and Structural Embedding Network (FPSEN)
+class FPSEN(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(FPSEN, self).__init__()
+        self.lin1 = torch.nn.Linear(input_dim, hidden_dim)
+        self.lin2 = torch.nn.Linear(input_dim + hidden_dim, output_dim)
+        self.res_gcn1 = ResidualGCN(input_dim, hidden_dim, output_dim)
+        self.res_gcn2 = ResidualGCN(input_dim, hidden_dim, output_dim)
+        self.act = nn.ReLU()
+
+    def forward(self, G1_data, G2_data):
+        pos_x1, pos_x2 = G1_data.pos_x, G2_data.pos_x
+        str_x1, str_x2 = G1_data.str_x, G2_data.str_x
+
+        pos_emd1 = torch.cat([pos_x1, self.act(self.lin1(pos_x1))], dim=1)
+        pos_emd2 = torch.cat([pos_x2, self.act(self.lin1(pos_x2))], dim=1)
+        pos_emd1 = self.lin2(pos_emd1)
+        pos_emd2 = self.lin2(pos_emd2)
+        pos_emd1 = F.normalize(pos_emd1, p=2, dim=1)
+        pos_emd2 = F.normalize(pos_emd2, p=2, dim=1)
+
+        str_emd1 = self.res_gcn1(str_x1, G1_data.edge_index)
+        str_emd2 = self.res_gcn1(str_x2, G2_data.edge_index)
+
+        return pos_emd1, pos_emd2, str_emd1, str_emd2
+
+
 class BRIGHT(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim):
         super(BRIGHT, self).__init__()
@@ -197,11 +241,11 @@ class RWRNet(torch.nn.Module):
         self.act = nn.ReLU()
 
     def forward(self, G1_data, G2_data):
-        x1, x2 = G1_data.x, G2_data.x
-        init_emb1 = self.lin(x1)
-        init_emb2 = self.lin(x2)
-        pos_emd1 = self.act(self.gcn_in(x1, G1_data.edge_index))
-        pos_emd2 = self.act(self.gcn_in(x2, G2_data.edge_index))
+        feat1, feat2 = G1_data.feat, G2_data.feat
+        init_emb1 = self.lin(feat1)
+        init_emb2 = self.lin(feat2)
+        pos_emd1 = self.act(self.gcn_in(feat1, G1_data.edge_index))
+        pos_emd2 = self.act(self.gcn_in(feat2, G2_data.edge_index))
         for i in range(self.num_layers - 1):
             pos_emd1 = self.act(self.gcn[i]((1 - self.beta) * pos_emd1 + self.beta * init_emb1, G1_data.edge_index))
             pos_emd2 = self.act(self.gcn[i]((1 - self.beta) * pos_emd2 + self.beta * init_emb2, G2_data.edge_index))
@@ -214,7 +258,7 @@ class RWRNet(torch.nn.Module):
 class FusedGWLoss(torch.nn.Module):
     def __init__(self, G1_tg, G2_tg, anchor1, anchor2, lambda_w=1, lambda_edge=20, lambda_total=1e-2, in_iter=5, out_iter=10, total_epochs=250):
         super().__init__()
-        self.device = G1_tg.x.device
+        self.device = G1_tg.pos_x.device
         self.lambda_w = lambda_w
         self.lambda_edge = lambda_edge
         self.lambda_total = lambda_total
@@ -227,10 +271,10 @@ class FusedGWLoss(torch.nn.Module):
         self.H = torch.ones(self.n1, self.n2).to(torch.float64).to(self.device)
         self.H[anchor1, anchor2] = 0
 
-    def forward(self, out1, out2, epoch):
-        inter_c = torch.exp(-(out1 @ out2.T))
-        intra_c1 = torch.exp(-(out1 @ out1.T)) * self.adj1
-        intra_c2 = torch.exp(-(out2 @ out2.T)) * self.adj2
+    def forward(self, pos_out1, pos_out2, str_out1, str_out2, epoch):
+        inter_c = torch.exp(-(pos_out1 @ pos_out2.T))
+        intra_c1 = torch.exp(-(str_out1 @ str_out1.T)) * self.adj1
+        intra_c2 = torch.exp(-(str_out2 @ str_out2.T)) * self.adj2
         with torch.no_grad():
             s = sinkhorn_super_stable(inter_c, intra_c1, intra_c2,
                          lambda_w=self.lambda_w,

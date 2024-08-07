@@ -55,14 +55,17 @@ def build_tg_graph(edge_index, x, rwr, dtype=torch.float32):
     Build a PyG Data object from edge list and node attributes.
     :param edge_index: edge list of the graph
     :param x: node attributes of the graph
-    :param rwr: random walk with restart scores
+    :param rwr: RWR scores of the graph
     :param dtype: data type
     :return: a PyG Data object
     """
 
     edge_index_tensor = torch.from_numpy(edge_index.T).to(torch.int64)
-    x_tensor = torch.from_numpy(x).to(dtype)
-    data = Data(x=x_tensor, edge_index=edge_index_tensor)
-    data.rwr = torch.from_numpy(rwr).to(dtype)
-    data.adj = to_dense_adj(edge_index_tensor).squeeze(0)
+    pos_x = torch.from_numpy(x).to(dtype)
+    str_x = torch.from_numpy(np.sort(rwr, axis=1)).to(dtype)
+    data = Data(edge_index=edge_index_tensor,
+                num_nodes=pos_x.shape[0],
+                pos_x=pos_x,
+                str_x=str_x,
+                adj=to_dense_adj(edge_index_tensor).squeeze(0))
     return data
