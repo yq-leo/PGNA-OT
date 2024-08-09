@@ -49,7 +49,7 @@ if __name__ == '__main__':
     hidden_dim = args.hidden_dim
     output_dim = args.out_dim
 
-    out_dir = "logs"
+    out_dir = "shared_logs"
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     writer = SummaryWriter(save_path(args.dataset, out_dir, args.use_attr))

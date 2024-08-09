@@ -19,7 +19,7 @@ class ResidualGCN(torch.nn.Module):
         init_out = F.normalize(init_out, p=2, dim=1)
         out1 = self.act(self.gcn1(init_out, edge_index))
         out1 = F.normalize(out1, p=2, dim=1)
-        out2 = self.gcn2(0.95 * init_out + 0.05 * out1, edge_index)
+        out2 = self.gcn2(0.9 * init_out + 0.1 * out1, edge_index)
         return F.normalize(out2, p=2, dim=1)
 
 
